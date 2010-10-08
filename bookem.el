@@ -3,7 +3,7 @@
 ;; Author: Kevin J. Fletcher <kevinjohn.fletcher@googlemail.com>
 ;; Maintainer: Kevin J. Fletcher <kevinjohn.fletcher@googlemail.com>
 ;; Keywords: bookem, bookmarks
-;; Homepage: http://github.com/kjfletch/bookem-el/bookem.el
+;; Homepage: http://github.com/kjfletch/bookem-el
 ;; Version: <WIP>
 ;; 
 ;;; Commentary
@@ -72,6 +72,13 @@
   (concat (file-name-as-directory bookem-dir) "bookem-bookmarks.el")
   "Define where the bookem bookmarks file is stored.")
 
+(defvar bookem-bookmark-types
+  '((:name   "File Bookmark" 
+     :type   :file 
+     :type-p bookem-bookmark-type-file-p
+     :make   bookem-bookmark-type-file-make
+     :lookup bookem-bookmark-type-file-lookup)))
+
 (setq bookem-bookmarks nil)
 (setq bookem-active-group nil)
 
@@ -86,25 +93,57 @@
 (defun bookem-get-bookmark-lookup-func (book-type)
   "Return a bookmark lookup function which can be used to
 find a bookmark of a given type."
-  (cond
-   ((eq book-type :file)
-    'bookem-bookmark-lookup-func-file)
-   ((t (error "Unknown bookmark type.")))))
-   
-(defun bookem-bookmark-lookup-func-file (book-loc)
+  (plist-get (bookem-get-bookmark-type-struct-from-type book-type)
+	     :lookup))
+
+(defun bookem-get-bookmark-type-struct-from-name (type-name)
+  "From a type name return the type structure."
+  (bookem-find-plist-from-match bookem-bookmark-types :name type-name))
+
+(defun bookem-get-bookmark-type-struct-from-type (type)
+  "From a type return the type structure."
+  (bookem-find-plist-from-match bookem-bookmark-types :type type))
+ 
+(defun bookem-get-available-type-names-for-buffer (&optional buffer)
+  (let ((buffer     (or buffer (current-buffer)))
+	(type-names nil))
+    (when buffer
+      (mapc (lambda (type)
+	      (if (funcall (plist-get type :type-p) buffer)
+		  (setq type-names (cons (plist-get type :name) type-names))))
+	    bookem-bookmark-types))
+    type-names))
+  
+(defun bookem-bookmark-type-file-lookup (book-loc)
   "Bookmark lookup function used to search for simple file type bookmarks."
   (let* ((path (plist-get book-loc :path))
 	 (line (plist-get book-loc :line))
 	 (buffer (find-file-noselect path)))
     `(:buffer ,buffer :line ,line)))
 
-(defun bookem-display-from-bookmark-structure (bookmark)
+(defun bookem-bookmark-type-file-p (buffer)
+  (message "TODO")
+  t)
+
+(defun bookem-bookmark-type-file-make (buffer)
+  `(:file "~/.emacs" :line 10))
+
+(defun bookem-find-plist-from-match (list key value)
+  "Given a list of property lists return the entry wich has a matching key with
+expected value."
+  (let ((found nil))
+    (mapc (lambda (x) 
+	    (when (equal value (plist-get x key))
+	      (setq found x)))
+	  list)
+    found))
+
+(defun bookem-display-from-bookmark-struct (bookmark)
   "Find and display the bookmark from the given bookmark structure."
   (let* ((book-type (plist-get bookmark :type))
 	 (book-name (plist-get bookmark :name))
 	 (book-loc  (plist-get bookmark :location))
 	 (book-lookup (bookem-get-bookmark-lookup-func book-type)))
-    (message book-name)
     (when book-lookup
       (bookem-display-from-display-info (funcall book-lookup book-loc)))))
 
@@ -165,37 +204,58 @@ Group can be a group name or a bookmark-group structure."
 (defun bookem-bookmark-from-group (group bookmark)
   "Get a bookmark (by name) from a group (by name or structure).
 Returns nil if bookmark is not found."
-  (let ((found-group (bookem-get-group-check group))
-	(found-bookmark nil))
-    (mapc (lambda (x) (if (equal bookmark (plist-get x :name)) (setq found-bookmark x))) found-group)
-    found-bookmark))
+  (let ((found-group (bookem-get-group-check group)))
+    (bookem-find-plist-from-match found-group :name bookmark)))
 
-(defun bookem-prompt-group-name ()
+(defun bookem-prompt-group-name (&optional require-match)
   "Prompt for a group name from the list of all group names."
   (let ((group-names (bookem-list-group-names)))
-    (when group-names
-      (setq bookem-active-group
-	    (ido-completing-read "Group: " group-names nil t nil nil bookem-active-group))
-      bookem-active-group)))
 
-(defun bookem-prompt-bookmark-name (group)
+    (when (and require-match (not group-names))
+      (error "No groups."))
+
+    (setq bookem-active-group
+	  (ido-completing-read "Group: " group-names nil require-match nil nil bookem-active-group))
+    bookem-active-group))
+
+(defun bookem-prompt-bookmark-name (group &optional require-match)
   "Prompt for a bookmark name from the list of all bookmarks in the given group"
   (let ((bookmarks-in-group (bookem-list-bookmark-names-in-group group)))
-    (when bookmarks-in-group
-      (ido-completing-read "Bookmark: " bookmarks-in-group nil t))))
+    
+    (when (and require-match (not bookmarks-in-group))
+      (error "No bookmarks for group"))
+
+    (ido-completing-read "Bookmark: " bookmarks-in-group nil require-match)))
+
+(defun bookem-prompt-bookmark-type (buffer)
+  "Prompt for a bookmark type of the given buffer."
+  (let* ((valid-type-names (bookem-get-available-type-names-for-buffer buffer)))
+    (if valid-type-names
+	(ido-completing-read "Bookmark Type: " valid-type-names nil t)
+      (error "No bookmark types defined for this buffer type."))))
 
 (defun bookem-goto-bookmark (&optional bookmark-name group-name)
   "Goto any bookmark registered with bookem."
   (interactive)
   (let* ((group-name (or group-name
-			 (bookem-prompt-group-name)))
+			 (bookem-prompt-group-name t)))
 	 (bookmark-name (or bookmark-name
-			    (bookem-prompt-bookmark-name group-name)))
+			    (bookem-prompt-bookmark-name group-name t)))
 	 (bookmark (bookem-bookmark-from-group group-name bookmark-name)))
     (when bookmark
-      (bookem-display-from-bookmark-structure bookmark))))
-      
-    
-	 
-		      
-		       
+      (bookem-display-from-bookmark-struct bookmark))))
+
+(defun bookem-bookmark-buffer (&optional buffer)
+  (interactive)
+  "Add a bookmark for a given buffer. If no buffer is given assume the current buffer."
+  (let* ((buffer (or buffer (current-buffer)))
+	 (bookmark-type-name (bookem-prompt-bookmark-type buffer))
+	 (bookmark-type (bookem-get-bookmark-type-struct-from-name bookmark-type-name))
+	 (make-defun (plist-get bookmark-type :make))
+	 (loc (and make-defun (funcall make-defun buffer)))
+	 (group (bookem-prompt-group-name))
+	 (bookmark (bookem-prompt-bookmark-name group))
+	 (group-struct nil)
+	 (bookmark-struct nil))
+    (message (concat group ":" bookmark))))
+		  
