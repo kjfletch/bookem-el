@@ -105,6 +105,7 @@ find a bookmark of a given type."
   (bookem-find-plist-from-match bookem-bookmark-types :type type))
  
 (defun bookem-get-available-type-names-for-buffer (&optional buffer)
+  "Return a list of bookmark type names supported by this buffer type."
   (let ((buffer     (or buffer (current-buffer)))
 	(type-names nil))
     (when buffer
@@ -122,11 +123,19 @@ find a bookmark of a given type."
     `(:buffer ,buffer :line ,line)))
 
 (defun bookem-bookmark-type-file-p (buffer)
-  (message "TODO")
-  t)
+  "Returns nil if the current buffer type does not support a file bookmark.
+Buffers which support file bookmarks are buffer associated with file."
+  (buffer-file-name buffer))
 
 (defun bookem-bookmark-type-file-make (buffer)
-  `(:file "~/.emacs" :line 10))
+  "Returns a location plist for a new file bookmark of buffer.
+The location plist contains file path (:file) and line number (:line)."
+  (let ((loc '()))
+    (save-excursion
+      (with-current-buffer buffer
+	(setq loc (plist-put loc :file (buffer-file-name)))
+	(setq loc (plist-put loc :line (line-number-at-pos (point))))))
+    loc))
 
 (defun bookem-find-plist-from-match (list key value)
   "Given a list of property lists return the entry wich has a matching key with
@@ -234,6 +243,17 @@ Returns nil if bookmark is not found."
 	(ido-completing-read "Bookmark Type: " valid-type-names nil t)
       (error "No bookmark types defined for this buffer type."))))
 
+(defun bookem-create-bookmark-struct (bookmark-name bookmark-type make-defun buffer)
+  "Return a new bookmark plist."
+  (let ((bookem-struct '()))
+    (setq bookem-struct (plist-put bookem-struct :name bookmark-name))
+    (setq bookem-struct (plist-put bookem-struct :type bookmark-type))
+    (plist-put bookem-struct :location (funcall make-defun buffer))))
+
+(defun bookem-add-bookmark-to-group (bookmark group-name)
+  "Add the given bookmark (plist) to the given group (name)."
+  (message (concat group-name ": " (prin1-to-string bookmark))))
+
 (defun bookem-goto-bookmark (&optional bookmark-name group-name)
   "Goto any bookmark registered with bookem."
   (interactive)
@@ -250,12 +270,12 @@ Returns nil if bookmark is not found."
   "Add a bookmark for a given buffer. If no buffer is given assume the current buffer."
   (let* ((buffer (or buffer (current-buffer)))
 	 (bookmark-type-name (bookem-prompt-bookmark-type buffer))
-	 (bookmark-type (bookem-get-bookmark-type-struct-from-name bookmark-type-name))
-	 (make-defun (plist-get bookmark-type :make))
-	 (loc (and make-defun (funcall make-defun buffer)))
+	 (bookmark-type-struct (bookem-get-bookmark-type-struct-from-name bookmark-type-name))
+	 (bookmark-type (plist-get bookmark-type-struct :type))
+	 (make-defun (plist-get bookmark-type-struct :make))
 	 (group (bookem-prompt-group-name))
 	 (bookmark (bookem-prompt-bookmark-name group))
-	 (group-struct nil)
-	 (bookmark-struct nil))
-    (message (concat group ":" bookmark))))
-		  
+	 (bookmark-struct (bookem-create-bookmark-struct bookmark bookmark-type make-defun buffer)))
+    (when (and bookmark-struct
+	       group)
+      (bookem-add-bookmark-to-group bookmark-struct group))))
