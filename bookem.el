@@ -127,11 +127,11 @@ Buffers which support file bookmarks are buffer associated with file."
 
 (defun bookem-make-file (buffer)
   "Returns a location plist for a new file bookmark of buffer.
-The location plist contains file path (:file) and line number (:line)."
+The location plist contains file path (:path) and line number (:line)."
   (let ((loc '()))
     (save-excursion
       (with-current-buffer buffer
-	(setq loc (plist-put loc :file (buffer-file-name)))
+	(setq loc (plist-put loc :path (buffer-file-name)))
 	(setq loc (plist-put loc :line (line-number-at-pos (point))))))
     loc))
 
@@ -144,6 +144,15 @@ expected value."
 	      (setq found x)))
 	  list)
     found))
+
+(defun bookem-list-delete-plist (list key value)
+  "Given a list of property lists delete entries whos key matches value."
+  (let (new-list)
+    (mapc (lambda (x)
+	    (unless (equal value (plist-get x key))
+	      (setq new-list (cons x new-list))))
+	  list)
+    new-list))
 
 (defun bookem-display-from-bookmark-plist (bookmark)
   "Find and display the bookmark from the given bookmark plist."
@@ -174,8 +183,8 @@ expected value."
   (with-temp-buffer
     (insert output)
     (when (file-writable-p filepath)
-      (write-reagion (point-pin)
-		     (pontt-max)
+      (write-region (point-min)
+		     (point-max)
 		     filepath))))
 
 (defun bookem-complete-space ()
@@ -261,9 +270,22 @@ Returns nil if bookmark is not found."
     (setq bookem-plist (plist-put bookem-plist :type bookmark-type))
     (plist-put bookem-plist :location (funcall make-defun buffer))))
 
+(defun bookem-create-group (group-name)
+  "Create a new group association."
+  '(,group-name . ()))
+
 (defun bookem-add-bookmark-to-group (bookmark group-name)
   "Add the given bookmark (plist) to the given group (name)."
-  (message (concat group-name ": " (prin1-to-string bookmark))))
+  (let* ((groups (bookem-groups))
+	 (group  (or (assoc group-name groups)
+		     (bookem-create-group group-name)))
+	 (group-key (car group)))
+    (setq groups (assq-delete-all group-key groups))
+    (setq group (bookem-list-delete-plist (cdr group) :name (plist-get bookmark :name)))
+    (setq group (cons bookmark group))
+    (setq group (cons group-name group))
+    (setq groups (cons group groups))
+    (setq bookem-bookmarks (plist-put bookem-bookmarks :bookmarks groups))))
 
 (defun bookem-goto-bookmark (&optional bookmark-name group-name)
   "Goto any bookmark registered with bookem."
@@ -284,9 +306,11 @@ Returns nil if bookmark is not found."
 	 (bookmark-type-plist (bookem-type-from-type-name bookmark-type-name))
 	 (bookmark-type (plist-get bookmark-type-plist :type))
 	 (make-defun (plist-get bookmark-type-plist :make))
-	 (group (bookem-prompt-group-name))
+ 	 (group (bookem-prompt-group-name))
 	 (bookmark (bookem-prompt-bookmark-name group))
 	 (bookmark-plist (bookem-create-bookmark bookmark bookmark-type make-defun buffer)))
     (when (and bookmark-plist
 	       group)
-      (bookem-add-bookmark-to-group bookmark-plist group))))
+      (bookem-add-bookmark-to-group bookmark-plist group)
+      (bookem-write-file bookem-bookmarks-path (prin1-to-string bookem-bookmarks))
+      (message "Bookmark Added."))))
