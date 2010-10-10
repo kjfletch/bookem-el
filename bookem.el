@@ -180,6 +180,19 @@ expected value."
 		     (pontt-max)
 		     filepath))))
 
+(defun bookem-complete-space ()
+  "Override for ido-complete-space."
+  (interactive)
+  (insert " "))
+
+(defun bookem-completing-read (prompt choices &optional require-match initial-input def)
+  "Prompt for user input with completion.
+Overrides ido keymap to allow us to insert spaces."
+  (let ((ido-common-completion-map (copy-keymap ido-common-completion-map)))
+    (unless require-match
+      (substitute-key-definition 'ido-complete-space 'bookem-complete-space ido-common-completion-map))
+    (ido-completing-read prompt choices nil require-match initial-input nil def)))
+
 (defun bookem-get-all-groups ()
   "Return the part of the bookmarks structure which holds the bookmark groups."
   (plist-get bookem-bookmarks :bookmarks))
@@ -224,7 +237,7 @@ Returns nil if bookmark is not found."
       (error "No groups."))
 
     (setq bookem-active-group
-	  (ido-completing-read "Group: " group-names nil require-match nil nil bookem-active-group))
+	  (bookem-completing-read "Group: " group-names require-match nil bookem-active-group))
     bookem-active-group))
 
 (defun bookem-prompt-bookmark-name (group &optional require-match)
@@ -234,13 +247,13 @@ Returns nil if bookmark is not found."
     (when (and require-match (not bookmarks-in-group))
       (error "No bookmarks for group"))
 
-    (ido-completing-read "Bookmark: " bookmarks-in-group nil require-match)))
+    (bookem-completing-read "Bookmark: " bookmarks-in-group require-match)))
 
 (defun bookem-prompt-bookmark-type (buffer)
   "Prompt for a bookmark type of the given buffer."
   (let* ((valid-type-names (bookem-get-available-type-names-for-buffer buffer)))
     (if valid-type-names
-	(ido-completing-read "Bookmark Type: " valid-type-names nil t)
+	(bookem-completing-read "Bookmark Type: " valid-type-names t)
       (error "No bookmark types defined for this buffer type."))))
 
 (defun bookem-create-bookmark-struct (bookmark-name bookmark-type make-defun buffer)
