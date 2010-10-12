@@ -181,10 +181,19 @@ expected value."
 (defun bookem-completing-read (prompt choices &optional require-match initial-input def)
   "Prompt for user input with completion.
 Overrides ido keymap to allow us to insert spaces."
-  (let ((ido-common-completion-map (copy-keymap ido-common-completion-map)))
-    (unless require-match
-      (substitute-key-definition 'ido-complete-space 'bookem-complete-space ido-common-completion-map))
-    (ido-completing-read prompt choices nil require-match initial-input nil def)))
+  (let ((ido-common-completion-map (and (boundp 'ido-common-completion-map)
+					ido-common-completion-map)))
+    (if (and (fboundp 'ido-mode)
+	     ido-mode)
+	(progn
+	  (unless require-match
+	    (substitute-key-definition 'ido-complete-space 'bookem-complete-space ido-common-completion-map))
+	  (ido-completing-read prompt choices nil require-match initial-input nil def))
+      (progn
+	(if (equal def "") (setq def nil))
+	(when def
+	  (setq prompt (concat prompt "(default: " def ") ")))
+	(completing-read prompt choices nil require-match nil nil def)))))
 
 (defun bookem-group-from-name (group)
   "Given a group name returns the plist for that bookmark group.
