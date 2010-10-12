@@ -27,26 +27,6 @@
 ;;   - todo implement new-bookmark (for simple file bookmarks).
 ;;   - todo implement saving of bookmarks.
 ;;
-;; Bookmarks file format: (bookem/bookem-bookmarks.el)
-;; (:bookmarks
-;;  (("bookem" .
-;;    ((:name "bookem src"
-;;      :type :file
-;;      :location (:path "/home/kjfletch/repos/bookem-el/bookem.el" :line 20))
-;;     (:name "bookem bookmarks file"
-;;      :type :file
-;;      :location (:path "/home/kjfletch/.emacs.d/bookem/bookem-bookmarks.el" :line 1))
-;;     (:name "bookem directory"
-;;      :type :file
-;;      :location (:path "/home/kjfletch/.emacs.d/bookem/" :line 1))))
-;;   ("dummy" .
-;;    ((:name "#1"
-;;      :type :file
-;;      :location (:path "~/.emacs" :line 10))
-;;     (:name "#2"
-;;      :type :file
-;;      :location (:path "~/.emacs" :line 20))))))
-;;
 ;; Copyright (C) 2010 Kevin J. Fletcher
 ;;
 ;; This program is free software: you can redistribute it and/or modify
@@ -80,14 +60,19 @@
 
 (setq bookem-bookmarks nil)
 (setq bookem-active-group nil)
+(setq bookem-current-bookmarks-format 1)
 
 (defun bookem-init ()
   "Initialise bookem module and storage space."
   (unless (file-directory-p bookem-dir)
     (make-directory bookem-dir))
-  
+
   (when (file-readable-p bookem-bookmarks-path)
-    (setq bookem-bookmarks (read (bookem-read-file bookem-bookmarks-path)))))
+    (setq bookem-bookmarks (read (bookem-read-file bookem-bookmarks-path))))
+  
+  (unless (equal (bookem-bookmarks-format)
+		 bookem-current-bookmarks-format)
+    (error "Unsupported bookmarks file format, please update bookem to the latest version.")))
 
 (defun bookem-lookup-from-type (book-type)
   "Return the defun used to lookup a bookmark of the given type."
@@ -102,6 +87,15 @@
   "From a type return the type plist."
   (bookem-list-get-plist bookem-bookmark-types :type type))
  
+(defun bookem-groups ()
+  "Get a list of bookmark groups."
+  (plist-get bookem-bookmarks :bookmarks))
+
+(defun bookem-bookmarks-format ()
+  "Get the format of the bookmarks structure"
+  (or (plist-get bookem-bookmarks :format)
+      bookem-current-bookmarks-format))
+
 (defun bookem-type-names-for-buffer (&optional buffer)
   "Return a list of bookmark type names supported by this buffer type."
   (let ((buffer     (or buffer (current-buffer)))
@@ -145,20 +139,12 @@ expected value."
 	  list)
     found))
 
-(defun bookem-list-delete-plist (list key value)
-  "Given a list of property lists delete entries whos key matches value."
-  (let (new-list)
-    (mapc (lambda (x)
-	    (unless (equal value (plist-get x key))
-	      (setq new-list (cons x new-list))))
-	  list)
-    new-list))
-
 (defun bookem-display-from-bookmark-plist (bookmark)
   "Find and display the bookmark from the given bookmark plist."
-  (let* ((book-type (plist-get bookmark :type))
-	 (book-name (plist-get bookmark :name))
-	 (book-loc  (plist-get bookmark :location))
+  (let* ((book-name (car bookmark))
+	 (book-plist (cdr bookmark))
+	 (book-type (plist-get book-plist :type))
+	 (book-loc  (plist-get book-plist :location))
 	 (book-lookup (bookem-lookup-from-type book-type)))
     (when book-lookup
       (bookem-display-from-display-info (funcall book-lookup book-loc)))))
@@ -200,17 +186,11 @@ Overrides ido keymap to allow us to insert spaces."
       (substitute-key-definition 'ido-complete-space 'bookem-complete-space ido-common-completion-map))
     (ido-completing-read prompt choices nil require-match initial-input nil def)))
 
-(defun bookem-groups ()
-  "Return the part of the bookmarks plist which holds the bookmark groups."
-  (plist-get bookem-bookmarks :bookmarks))
-
 (defun bookem-group-from-name (group)
   "Given a group name returns the plist for that bookmark group.
 Return nil if not found."
-  (let* ((group-list (bookem-groups))
-	 (found-group (assoc group group-list)))
-    (if found-group
-	(cdr found-group))))
+  (let* ((group-list (bookem-groups)))
+    (assoc group group-list)))
 
 (defun bookem-get-group-check (group)
   "If group is a string locate the group plist and return. 
@@ -223,9 +203,10 @@ If group can't be found returns nil."
 (defun bookem-bookmark-names-from-group (group)
   "Given a group return a list of all bookmark names in that group.
 Group can be a group name or a bookmark-group plist."
-  (let ((found-group (bookem-get-group-check group)))
-    (mapcar (lambda (x) (plist-get x :name)) found-group)))
-    
+  (let ((group-bookmarks (bookem-bookmark-list-from-group group)))
+    (when group-bookmarks
+      (mapcar (lambda (x) (car x)) group-bookmarks))))
+
 (defun bookem-list-group-names ()
   "Return a list of group names."
   (mapcar (lambda (x) (car x)) (bookem-groups)))
@@ -233,8 +214,16 @@ Group can be a group name or a bookmark-group plist."
 (defun bookem-bookmark-from-group (group bookmark)
   "Get a bookmark (by name) from a group (by name or plist).
 Returns nil if bookmark is not found."
+  (let ((group-bookmarks (bookem-bookmark-list-from-group group)))
+    (when group-bookmarks
+      (assoc bookmark group-bookmarks))))
+
+(defun bookem-bookmark-list-from-group (group)
+  "Get the list of bookmarks in given group.
+Group can be a name or a group structure."
   (let ((found-group (bookem-get-group-check group)))
-    (bookem-list-get-plist found-group :name bookmark)))
+    (when found-group
+      (cdr found-group))))
 
 (defun bookem-prompt-group-name (&optional require-match)
   "Prompt for a group name from the list of all group names."
@@ -265,28 +254,37 @@ Returns nil if bookmark is not found."
 
 (defun bookem-create-bookmark (bookmark-name bookmark-type make-defun buffer)
   "Return a new bookmark plist."
-  (let ((bookem-plist '()))
-    (setq bookem-plist (plist-put bookem-plist :name bookmark-name))
-    (setq bookem-plist (plist-put bookem-plist :type bookmark-type))
-    (plist-put bookem-plist :location (funcall make-defun buffer))))
+  (let ((loc (funcall make-defun buffer)))
+    `(,bookmark-name . (:type ,bookmark-type :location ,loc))))
 
 (defun bookem-create-group (group-name)
   "Create a new group association."
-  '(,group-name . ()))
+  `(,group-name . ()))
 
-(defun bookem-add-bookmark-to-group (bookmark group-name)
+(defun bookem-add-bookmark-to-group (bookmark group-name groups)
   "Add the given bookmark (plist) to the given group (name)."
-  (let* ((groups (bookem-groups))
-	 (group  (or (assoc group-name groups)
+  (let (group group-key group-bookmarks bookmark-name)
+    (setq group  (or (assoc group-name groups)
 		     (bookem-create-group group-name)))
-	 (group-key (car group)))
+    (setq bookmark-name (car bookmark))
+    (setq group-key (car group))
+    (setq group-bookmarks (cdr group))
     (setq groups (assq-delete-all group-key groups))
-    (setq group (bookem-list-delete-plist (cdr group) :name (plist-get bookmark :name)))
-    (setq group (cons bookmark group))
-    (setq group (cons group-name group))
+    (setq group-bookmarks (assq-delete-all bookmark-name group-bookmarks))
+    (setq group-bookmarks (cons bookmark group-bookmarks))
+    (setq group (cons group-name group-bookmarks))
     (setq groups (cons group groups))
-    (setq bookem-bookmarks (plist-put bookem-bookmarks :bookmarks groups))))
+    groups))
 
+(defun bookem-save-bookmarks (&optional bookmarks)
+  "Save the bookmark structure to disk.
+If bookmarks is not nil updates the bookmark groups with new value."
+  (let ((bookmark-groups (or bookmarks
+			     (bookem-groups))))
+    (setq bookem-bookmarks (plist-put bookem-bookmarks :bookmarks bookmark-groups))
+    (setq bookem-bookmarks (plist-put bookem-bookmarks :format bookem-current-bookmarks-format))
+    (bookem-write-file bookem-bookmarks-path (prin1-to-string bookem-bookmarks))))
+ 
 (defun bookem-goto-bookmark (&optional bookmark-name group-name)
   "Goto any bookmark registered with bookem."
   (interactive)
@@ -311,6 +309,6 @@ Returns nil if bookmark is not found."
 	 (bookmark-plist (bookem-create-bookmark bookmark bookmark-type make-defun buffer)))
     (when (and bookmark-plist
 	       group)
-      (bookem-add-bookmark-to-group bookmark-plist group)
-      (bookem-write-file bookem-bookmarks-path (prin1-to-string bookem-bookmarks))
+      (bookem-save-bookmarks 
+       (bookem-add-bookmark-to-group bookmark-plist group (bookem-groups)))
       (message "Bookmark Added."))))
