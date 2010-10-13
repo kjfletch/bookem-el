@@ -56,8 +56,13 @@
      :type   :file 
      :type-p bookem-type-p-file
      :make   bookem-make-file
-     :lookup bookem-lookup-file))
-  "List of bookem inbuilt bookmark types.")
+     :lookup bookem-lookup-file)
+    (:name "C Function Bookmark"
+     :type :c-defun
+     :type-p bookem-type-p-c-defun
+     :make bookem-make-c-defun
+     :lookup bookem-lookup-c-defun))
+  "List of bookem bookmark types.")
 
 (setq bookem-bookmarks nil)
 (setq bookem-active-group nil)
@@ -108,6 +113,9 @@
 	    bookem-bookmark-types))
     type-names))
   
+;;
+;; File Bookmark Type
+;;
 (defun bookem-lookup-file (book-loc)
   "Bookmark lookup function used to search for simple file type bookmarks."
   (let* ((path (plist-get book-loc :path))
@@ -137,6 +145,40 @@ The location plist contains file path (:path) and point (:point)."
 	(setq loc (plist-put loc :point (point)))
 	(setq loc (plist-put loc :line (line-number-at-pos (point))))))
     loc))
+
+;;
+;; C Function Bookmark Type
+;;
+(defun bookem-type-p-c-defun (buffer)
+  "Returns t if the given buffer supports c function type bookmarks.
+This is the case if the buffer has an associated file, is in c-mode
+and point is within a function definition."
+  (with-current-buffer buffer
+    (and (buffer-file-name buffer)
+         (eq major-mode 'c-mode)
+	 (c-defun-name))))
+
+(defun bookem-make-c-defun (buffer)
+  "Returns new c-defun bookmark type location info from given buffer."
+  (with-current-buffer buffer
+    `(:path ,(buffer-file-name buffer)
+      :line ,(line-number-at-pos (point))
+      :point ,(point)
+      :defun ,(c-defun-name))))
+
+(defun bookem-lookup-c-defun (loc)
+  "From a c-defun location plist locate the associated file and position of the function."
+  (let* ((path (plist-get loc :path))
+	 (line (plist-get loc :line))
+	 (point (plist-get loc :point))
+	 (defun-name (plist-get loc :defun))
+	 (buffer (find-file-noselect path)))
+    (with-current-buffer buffer
+      (save-excursion
+	(goto-char (point-min))
+	;; TODO
+	))
+    `(:buffer ,buffer :point ,point)))
 
 (defun bookem-list-get-plist (list key value)
   "Given a list of property lists return the entry wich has a matching key with
