@@ -172,12 +172,20 @@ and point is within a function definition."
 	 (line (plist-get loc :line))
 	 (point (plist-get loc :point))
 	 (defun-name (plist-get loc :defun))
-	 (buffer (find-file-noselect path)))
+	 (buffer (find-file-noselect path))
+	 (defun-loop-not-found t))
     (with-current-buffer buffer
       (save-excursion
 	(goto-char (point-min))
-	;; TODO
-	))
+	(unless (equal defun-name (c-defun-name))
+	  (goto-line line)
+	  (setq point (point))
+	  (unless (equal defun-name (c-defun-name))
+	    (beginning-of-buffer)
+	    (while (and defun-loop-not-found (search-forward defun-name))
+	      (when (equal defun-name (c-defun-name))
+		(setq defun-loop-not-found nil)
+		(setq point (point))))))))
     `(:buffer ,buffer :point ,point)))
 
 (defun bookem-list-get-plist (list key value)
