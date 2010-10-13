@@ -133,15 +133,18 @@
 (defun bookem-type-p-file (buffer)
   "Returns nil if the current buffer type does not support a file bookmark.
 Buffers which support file bookmarks are buffer associated with file."
-  (buffer-file-name buffer))
+  (or (buffer-file-name buffer)
+      (eq 'dired-mode major-mode)))
 
 (defun bookem-make-file (buffer)
   "Returns a location plist for a new file bookmark of buffer.
 The location plist contains file path (:path) and point (:point)."
-  (let ((loc '()))
+  (let (loc path)
+    (setq path (or (buffer-file-name)
+		   default-directory))
     (save-excursion
       (with-current-buffer buffer
-	(setq loc (plist-put loc :path (buffer-file-name)))
+	(setq loc (plist-put loc :path path))
 	(setq loc (plist-put loc :point (point)))
 	(setq loc (plist-put loc :line (line-number-at-pos (point))))))
     loc))
