@@ -56,7 +56,8 @@
      :type   :file 
      :type-p bookem-type-p-file
      :make   bookem-make-file
-     :lookup bookem-lookup-file)))
+     :lookup bookem-lookup-file))
+  "List of bookem inbuilt bookmark types.")
 
 (setq bookem-bookmarks nil)
 (setq bookem-active-group nil)
@@ -111,8 +112,15 @@
   "Bookmark lookup function used to search for simple file type bookmarks."
   (let* ((path (plist-get book-loc :path))
 	 (line (plist-get book-loc :line))
+	 (point (plist-get book-loc :point))
 	 (buffer (find-file-noselect path)))
-    `(:buffer ,buffer :line ,line)))
+    (with-current-buffer buffer
+      (save-excursion
+	(unless (equal (line-number-at-pos point) line)
+	  (goto-line line)
+	  (beginning-of-line)
+	  (setq point (point)))))
+    `(:buffer ,buffer :point ,point)))
 
 (defun bookem-type-p-file (buffer)
   "Returns nil if the current buffer type does not support a file bookmark.
@@ -121,11 +129,12 @@ Buffers which support file bookmarks are buffer associated with file."
 
 (defun bookem-make-file (buffer)
   "Returns a location plist for a new file bookmark of buffer.
-The location plist contains file path (:path) and line number (:line)."
+The location plist contains file path (:path) and point (:point)."
   (let ((loc '()))
     (save-excursion
       (with-current-buffer buffer
 	(setq loc (plist-put loc :path (buffer-file-name)))
+	(setq loc (plist-put loc :point (point)))
 	(setq loc (plist-put loc :line (line-number-at-pos (point))))))
     loc))
 
@@ -150,12 +159,12 @@ expected value."
       (bookem-display-from-display-info (funcall book-lookup book-loc)))))
 
 (defun bookem-display-from-display-info (book-display-info)
-  "Display the bookmark given the display info plist (buffer, line)."
+  "Display the bookmark given the display info plist (buffer, point)."
   (let ((buffer (plist-get book-display-info :buffer))
-	(line (plist-get book-display-info :line)))
-    (when (and buffer line)
+	(point (plist-get book-display-info :point)))
+    (when (and buffer point)
       (switch-to-buffer buffer)
-      (goto-line line))))
+      (goto-char point))))
 
 (defun bookem-read-file (filepath)
   "Read a file and return it's contents as a string."
