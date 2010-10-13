@@ -1,0 +1,41 @@
+Brief
+-----
+Bookem is a bookmarking system for emacs written in elisp.
+
+Notes
+-----
+Your experience with bookem will be greatly enhanced by using
+ido-mode: http://www.emacswiki.org/emacs/InteractivelyDoThings
+
+Features
+--------
+* Store bookmarks in groups.
+* Bookmarks list/manager. (TODO)
+* ido support for choosing bookmarks.
+* Inbuilt bookmark types:
+  + Simple file bookmarks
+
+    Bookmark a line/point of a file. This also works with dired
+    buffers.
+
+  + C Function Bookmarks
+
+    Bookmark a c function. This bookmarks the current c function
+    within a file, if if the function moves location (due to active
+    development)
+
+  + Info Bookmarks (TODO)
+
+    Bookmark your position in info manuals.
+
+  + Woman Bookmarks (TODO)
+
+    Bookmark your position in (wo)man manuals.
+
+* Extensible
+  
+  Bookem is extensible and very easy to add custom bookmark types.
+
+  + Example
+    
+    TODO
