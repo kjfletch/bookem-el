@@ -14,18 +14,14 @@
 ;;
 ;; Bookmark types:
 ;;  file      - simple bookmark for a line in a file.
-;;  c-defun   - TODO bookmark a function in a c file.
-;;  dired     - Not specifically a seperate bookmark type, works
-;;               as a file bookmark. Open a dired buffer for a given
-;;               bookmarked directory.
+;;              also works on dired buffers.
+;;  c-defun   - bookmark a function in a c file.
 ;;  info      - TODO Bookmark a location in an info document.
 ;;  woman     - TODO Bookmark a position in a man page.
 ;;
 ;; Changelog
 ;;
 ;;  WIP - 2010-??-??
-;;   - todo implement new-bookmark (for simple file bookmarks).
-;;   - todo implement saving of bookmarks.
 ;;
 ;; Copyright (C) 2010 Kevin J. Fletcher
 ;;
@@ -56,12 +52,14 @@
      :type   :file 
      :type-p bookem-type-p-file
      :make   bookem-make-file
-     :lookup bookem-lookup-file)
+     :lookup bookem-lookup-file
+     :suggest-name bookem-suggest-name-file)
     (:name "C Function Bookmark"
      :type :c-defun
      :type-p bookem-type-p-c-defun
      :make bookem-make-c-defun
-     :lookup bookem-lookup-c-defun))
+     :lookup bookem-lookup-c-defun
+     :suggest-name bookem-suggest-name-c-defun))
   "List of bookem bookmark types.")
 
 (setq bookem-bookmarks nil)
@@ -140,14 +138,23 @@ Buffers which support file bookmarks are buffer associated with file."
   "Returns a location plist for a new file bookmark of buffer.
 The location plist contains file path (:path) and point (:point)."
   (let (loc path)
-    (setq path (or (buffer-file-name)
-		   default-directory))
     (save-excursion
       (with-current-buffer buffer
+	(setq path (or (buffer-file-name)
+		       default-directory))
 	(setq loc (plist-put loc :path path))
 	(setq loc (plist-put loc :point (point)))
 	(setq loc (plist-put loc :line (line-number-at-pos (point))))))
     loc))
+
+(defun bookem-suggest-name-file (buffer)
+  "Return a suggested name for a bookmark of the given buffer."
+  (let (filename)
+    (with-current-buffer buffer
+      (setq filename (or (buffer-file-name) default-directory))
+      (setq filename (replace-regexp-in-string "[\\\\/]$" "" filename))
+      (setq filename (file-name-nondirectory filename))
+      (format "%s:%d" filename (line-number-at-pos (point))))))
 
 ;;
 ;; C Function Bookmark Type
@@ -190,6 +197,13 @@ and point is within a function definition."
 		(setq defun-loop-not-found nil)
 		(setq point (point))))))))
     `(:buffer ,buffer :point ,point)))
+
+(defun bookem-suggest-name-c-defun (buffer)
+  "Return a suggested name for a bookmark of the given buffer."
+  (let (filename)
+    (with-current-buffer buffer
+      (setq filename (file-name-nondirectory (buffer-file-name)))
+      (format "%s:%s()" filename (c-defun-name)))))
 
 (defun bookem-list-get-plist (list key value)
   "Given a list of property lists return the entry wich has a matching key with
@@ -255,7 +269,7 @@ Overrides ido keymap to allow us to insert spaces."
 	(if (equal def "") (setq def nil))
 	(when def
 	  (setq prompt (concat prompt "(default: " def ") ")))
-	(completing-read prompt choices nil require-match nil nil def)))))
+	(completing-read prompt choices nil require-match initial-input nil def)))))
 
 (defun bookem-group-from-name (group)
   "Given a group name returns the plist for that bookmark group.
@@ -307,14 +321,14 @@ Group can be a name or a group structure."
 	  (bookem-completing-read "Group: " group-names require-match nil bookem-active-group))
     bookem-active-group))
 
-(defun bookem-prompt-bookmark-name (group &optional require-match)
+(defun bookem-prompt-bookmark-name (group &optional require-match initial-input)
   "Prompt for a bookmark name from the list of all bookmarks in the given group"
   (let ((bookmarks-in-group (bookem-bookmark-names-from-group group)))
     
     (when (and require-match (not bookmarks-in-group))
       (error "No bookmarks for group"))
 
-    (bookem-completing-read "Bookmark: " bookmarks-in-group require-match)))
+    (bookem-completing-read "Bookmark: " bookmarks-in-group require-match initial-input)))
 
 (defun bookem-prompt-type-name (buffer)
   "Prompt for a bookmark type of the given buffer."
@@ -375,8 +389,11 @@ If bookmarks is not nil updates the bookmark groups with new value."
 	 (bookmark-type-plist (bookem-type-from-type-name bookmark-type-name))
 	 (bookmark-type (plist-get bookmark-type-plist :type))
 	 (make-defun (plist-get bookmark-type-plist :make))
+	 (suggest-name-defun (plist-get bookmark-type-plist :suggest-name))
+	 (suggested-name (and suggest-name-defun
+			      (funcall suggest-name-defun buffer)))
  	 (group (bookem-prompt-group-name))
-	 (bookmark (bookem-prompt-bookmark-name group))
+	 (bookmark (bookem-prompt-bookmark-name group nil suggested-name))
 	 (bookmark-plist (bookem-create-bookmark bookmark bookmark-type make-defun buffer)))
     (when (and bookmark-plist
 	       group)
