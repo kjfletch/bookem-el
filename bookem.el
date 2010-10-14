@@ -249,6 +249,18 @@ expected value."
 		     (point-max)
 		     filepath))))
 
+(defun bookem-ass-equal-delete (key alist)
+  "Delete all elements in the alist whose assoc key equal given key."
+  (let (equal-assoc loop-exit)
+    (while (not loop-exit)
+      (setq equal-assoc (assoc key alist))
+      
+      (if equal-assoc
+	  (progn
+	    (setq alist (assq-delete-all (car equal-assoc) alist)))
+	(setq loop-exit t)))
+    alist))
+
 (defun bookem-complete-space ()
   "Override for ido-complete-space."
   (interactive)
@@ -264,12 +276,9 @@ Overrides ido keymap to allow us to insert spaces."
 	(progn
 	  (unless require-match
 	    (substitute-key-definition 'ido-complete-space 'bookem-complete-space ido-common-completion-map))
-	  (ido-completing-read prompt choices nil require-match initial-input nil def))
+	  (ido-completing-read prompt choices nil require-match initial-input nil nil))
       (progn
-	(if (equal def "") (setq def nil))
-	(when def
-	  (setq prompt (concat prompt "(default: " def ") ")))
-	(completing-read prompt choices nil require-match initial-input nil def)))))
+	(completing-read prompt choices nil require-match initial-input nil nil)))))
 
 (defun bookem-group-from-name (group)
   "Given a group name returns the plist for that bookmark group.
@@ -354,8 +363,8 @@ Group can be a name or a group structure."
     (setq bookmark-name (car bookmark))
     (setq group-key (car group))
     (setq group-bookmarks (cdr group))
-    (setq groups (assq-delete-all group-key groups))
-    (setq group-bookmarks (assq-delete-all bookmark-name group-bookmarks))
+    (setq groups (bookem-ass-equal-delete group-key groups))
+    (setq group-bookmarks (bookem-ass-equal-delete bookmark-name group-bookmarks))
     (setq group-bookmarks (cons bookmark group-bookmarks))
     (setq group (cons group-name group-bookmarks))
     (setq groups (cons group groups))
@@ -384,19 +393,31 @@ If bookmarks is not nil updates the bookmark groups with new value."
 (defun bookem-bookmark-buffer (&optional buffer)
   (interactive)
   "Add a bookmark for a given buffer. If no buffer is given assume the current buffer."
-  (let* ((buffer (or buffer (current-buffer)))
-	 (bookmark-type-name (bookem-prompt-type-name buffer))
+  (let* (buffer suggested-name group-name bookmark-name new-bookmark
+         (bookmark-type-name (bookem-prompt-type-name buffer))
 	 (bookmark-type-plist (bookem-type-from-type-name bookmark-type-name))
 	 (bookmark-type (plist-get bookmark-type-plist :type))
 	 (make-defun (plist-get bookmark-type-plist :make))
-	 (suggest-name-defun (plist-get bookmark-type-plist :suggest-name))
-	 (suggested-name (and suggest-name-defun
-			      (funcall suggest-name-defun buffer)))
- 	 (group (bookem-prompt-group-name))
-	 (bookmark (bookem-prompt-bookmark-name group nil suggested-name))
-	 (bookmark-plist (bookem-create-bookmark bookmark bookmark-type make-defun buffer)))
-    (when (and bookmark-plist
-	       group)
-      (bookem-save-bookmarks 
-       (bookem-add-bookmark-to-group bookmark-plist group (bookem-groups)))
-      (message "Bookmark Added."))))
+	 (suggest-name-defun (plist-get bookmark-type-plist :suggest-name)))
+
+    (unless bookmark-type-plist
+      (error "Cannot find bookmark type."))
+
+    (setq buffer (or buffer (current-buffer)))
+    (setq suggested-name (and suggest-name-defun (funcall suggest-name-defun buffer)))
+    (setq group-name (bookem-prompt-group-name))
+    (setq bookmark-name (bookem-prompt-bookmark-name group-name nil suggested-name))
+    (setq new-bookmark (bookem-create-bookmark bookmark-name bookmark-type make-defun buffer))
+
+    (when (or (not bookmark-name)
+	      (equal "" bookmark-name))
+      (error "Invalid bookmark name."))
+    (unless new-bookmark
+      (error "Could not create bookmark."))
+    (when (or (not group-name) 
+	      (equal "" group-name))
+      (error "Invalid group name."))
+
+    (bookem-save-bookmarks 
+     (bookem-add-bookmark-to-group new-bookmark group-name (bookem-groups)))
+    (message "Bookmark Added.")))
