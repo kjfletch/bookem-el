@@ -1,5 +1,5 @@
-Brief
------
+Description
+-----------
 Bookem is a bookmarking system for emacs written in elisp.
 
 Notes
@@ -21,8 +21,8 @@ Features
   + C Function Bookmarks
 
     Bookmark a c function. This bookmarks the current c function
-    within a file, if if the function moves location (due to active
-    development)
+    within a file, even if the function moves location (due to active
+    development).
 
   + Info Bookmarks (TODO)
 

@@ -46,6 +46,10 @@
   (concat (file-name-as-directory bookem-dir) "bookem-bookmarks.el")
   "Define where the bookem bookmarks file is stored.")
 
+(defvar bookem-bookmark-list-buffer-name
+  "*Bookem Bookmarks*"
+  "Define the name of the bookmark list/buffer.")
+
 (defvar bookem-bookmark-types
   '((:name   "File Bookmark" 
      :type   :file 
@@ -380,6 +384,29 @@ If bookmarks is not nil updates the bookmark groups with new value."
 ;;
 ;; Bookem Bookmark List/Buffer
 ;;
+(defvar bookem-bookmark-list-mode-map
+  (let ((map (make-keymap)))
+    (suppress-keymap map t)
+    (define-key map "q" 'quit-window)
+    (define-key map " " 'next-line)
+    (define-key map "n" 'next-line)
+    (define-key map "p" 'previous-line)
+    (define-key map "?" 'describe-mode)
+    (define-key map "a" 'bookem-goto-bookmark-at-line)
+    map))
+
+(defun bookem-bookmark-list-mode ()
+  "Major mode for the bookem bookmarks list/buffer.
+\\<bookem-bookmark-list-mode-map>
+\\[bookem-goto-bookmark-at-line] -- Jump to the location of the bookmark under point."
+  (kill-all-local-variables)
+  (use-local-map bookem-bookmark-list-mode-map)
+  (setq truncate-lines t)
+  (setq buffer-read-only t)
+  (setq major-mode 'bookem-bookmark-list-mode)
+  (setq mode-name "Bookem Bookmark Menu")
+  (run-mode-hooks 'bookem-bookmark-list-mode-hook))
+
 (defun bookem-list-write-bookmark (bookmark group-name)
   "Write out the given bookmark in the current buffer."
   (let ((bookmark-name (car bookmark))
@@ -387,7 +414,8 @@ If bookmarks is not nil updates the bookmark groups with new value."
 	(start-line (point)))
     ;;              "_D_>>"
     (insert (format "     %s - %s\n" (car bookmark) (plist-get (cdr bookmark) :location)))
-    (put-text-property start-line (point) 'bookem-bookmark-name-property bookmark-name)))
+    (put-text-property start-line (point) 'bookem-bookmark-name-property bookmark-name)
+    (put-text-property start-line (point) 'bookem-bookmark-property bookmark)))
 
 (defun bookem-list-write-group (group)
   "Write out the given group in the current buffer."
@@ -404,15 +432,28 @@ If bookmarks is not nil updates the bookmark groups with new value."
   "Create and return the bookmark list buffer. If it exists the buffer 
 will be refreshed."
   (let (buffer)
-    (setq buffer (get-buffer-create "*TestBuffer*"))
+    (setq buffer (get-buffer-create bookem-bookmark-list-buffer-name))
     
     (with-current-buffer buffer
-      (erase-buffer)
-      (insert "Bookem Bookmark List\n")
-      (insert "--------------------\n")
-      
-      (mapc 'bookem-list-write-group bookem-bookmark-groups))
+      (let ((inhibit-read-only t))
+	(erase-buffer)
+	(insert "Bookem Bookmark List\n")
+	(insert "--------------------\n")
+	
+	(mapc 'bookem-list-write-group bookem-bookmark-groups)
+	(bookem-bookmark-list-mode)))
     buffer))
+
+(defun bookem-goto-bookmark-at-line ()
+  "If there is a bookmark at the current line in the bookmark
+list buffer display it."
+  (interactive)
+  (let (property)
+  (with-current-buffer (get-buffer-create bookem-bookmark-list-buffer-name)
+    (setq property (get-text-property (point) 'bookem-bookmark-property))
+    (if property
+	(bookem-display-from-bookmark-plist property)))))
+    
 ;;
 ;; Public Commands
 ;;
@@ -462,5 +503,4 @@ will be refreshed."
 (defun bookem-list-bookmarks ()
   "List the bookmarks in a buffer."
   (interactive)
-  (switch-to-buffer (bookem-list-buffer-create))
-  (view-mode))
+  (switch-to-buffer (bookem-list-buffer-create)))
