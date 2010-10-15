@@ -378,7 +378,47 @@ If bookmarks is not nil updates the bookmark groups with new value."
     (setq bookem-bookmarks (plist-put bookem-bookmarks :bookmarks bookmark-groups))
     (setq bookem-bookmarks (plist-put bookem-bookmarks :format bookem-current-bookmarks-format))
     (bookem-write-file bookem-bookmarks-path (prin1-to-string bookem-bookmarks))))
- 
+
+;;
+;; Bookem Bookmark List/Buffer
+;;
+(defun bookem-list-write-bookmark (bookmark group-name)
+  "Write out the given bookmark in the current buffer."
+  (let ((bookmark-name (car bookmark))
+	(bookmark-rest (car bookmark))
+	(start-line (point)))
+    ;;              "_D_>>"
+    (insert (format "     %s - %s\n" (car bookmark) (plist-get (cdr bookmark) :location)))
+    (put-text-property start-line (point) 'bookem-bookmark-name-property bookmark-name)))
+
+(defun bookem-list-write-group (group)
+  "Write out the given group in the current buffer."
+  (let ((group-name (car group))
+	(bookmarks (cdr group))
+	(start-line (point)))
+    ;;               _D_           Padding before group for option flags.
+    (insert (concat "   " group-name "\n"))
+    (mapc (lambda (bookmark) (bookem-list-write-bookmark bookmark group-name)) bookmarks)
+    (put-text-property start-line (point) 'bookem-group-name-property group-name)
+    (newline)))
+
+(defun bookem-list-buffer-create ()
+  "Create and return the bookmark list buffer. If it exists the buffer 
+will be refreshed."
+  (let (buffer groups)
+    (setq buffer (get-buffer-create "*TestBuffer*"))
+    (setq groups (plist-get bookem-bookmarks :bookmarks))
+    
+    (with-current-buffer buffer
+      (erase-buffer)
+      (insert "Bookem Bookmark List\n")
+      (insert "--------------------\n")
+      
+      (mapc 'bookem-list-write-group groups))
+    buffer))
+;;
+;; Public Commands
+;;
 (defun bookem-goto-bookmark (&optional bookmark-name group-name)
   "Goto any bookmark registered with bookem."
   (interactive)
@@ -421,3 +461,9 @@ If bookmarks is not nil updates the bookmark groups with new value."
     (bookem-save-bookmarks 
      (bookem-add-bookmark-to-group new-bookmark group-name (bookem-groups)))
     (message "Bookmark Added.")))
+
+(defun bookem-list-bookmarks ()
+  "List the bookmarks in a buffer."
+  (interactive)
+  (switch-to-buffer (bookem-list-buffer-create))
+  (view-mode))
