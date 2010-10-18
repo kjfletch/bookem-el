@@ -504,3 +504,6 @@ list buffer display it."
   "List the bookmarks in a buffer."
   (interactive)
   (switch-to-buffer (bookem-list-buffer-create)))
+
+(bookem-init)
+(provide 'bookem)
