@@ -65,6 +65,21 @@
      :suggest-name bookem-suggest-name-c-defun))
   "List of bookem bookmark types.")
 
+(defface bookem-list-heading-face
+  '((t (:inherit font-lock-type-face)))
+  "Face to use for the heading on the bookem bookmark list."
+  :version "22.1")
+
+(defface bookem-list-group-face
+  '((t (:inherit font-lock-function-name-face)))
+  "Face to highlight a group on the bookem bookmark list."
+  :version "22.1")
+
+(defface bookem-list-bookmark-name-face
+  '((t (:inherit font-lock-constant-face)))
+  "Face to highlight a bookmark name on the bookem bookmark list."
+  :version "22.1")
+
 (setq bookem-bookmark-groups nil)
 (setq bookem-active-group nil)
 (setq bookem-current-bookmarks-format 1)
@@ -83,8 +98,9 @@
       (setq file-format (plist-get file-contents :format))
       (setq bookem-bookmark-groups (plist-get file-contents :bookmarks)))
     
-    (unless (equal bookem-current-bookmarks-format file-format)
-      (error "Unsupported bookmarks file format, please update bookem to the latest version."))))
+    (if file-format
+	(unless (equal bookem-current-bookmarks-format file-format)
+	  (error "Unsupported bookmarks file format, please update bookem to the latest version.")))))
 
 ;;
 ;; Bookmark Type System
@@ -409,11 +425,18 @@ If bookmarks is not nil updates the bookmark groups with new value."
 
 (defun bookem-list-write-bookmark (bookmark group-name)
   "Write out the given bookmark in the current buffer."
-  (let ((bookmark-name (car bookmark))
+  (let (face-start
+	(bookmark-name (car bookmark))
 	(bookmark-rest (car bookmark))
 	(start-line (point)))
-    ;;              "_D_>>"
-    (insert (format "     %s - %s\n" (car bookmark) (plist-get (cdr bookmark) :location)))
+    ;;      "_D_>>"
+    (insert "     ")
+    (setq face-start (point))
+    (insert (car bookmark))
+    (add-text-properties face-start (point)
+			 '(font-lock-face bookem-list-bookmark-name-face))
+    (insert " - ")
+    (insert (format "%s\n" (plist-get (cdr bookmark) :location)))
     (put-text-property start-line (point) 'bookem-bookmark-name-property bookmark-name)
     (put-text-property start-line (point) 'bookem-bookmark-property bookmark)))
 
@@ -424,6 +447,8 @@ If bookmarks is not nil updates the bookmark groups with new value."
 	(start-line (point)))
     ;;               _D_           Padding before group for option flags.
     (insert (concat "   " group-name "\n"))
+    (add-text-properties start-line (point)
+		       '(font-lock-face bookem-list-group-face))
     (mapc (lambda (bookmark) (bookem-list-write-bookmark bookmark group-name)) bookmarks)
     (put-text-property start-line (point) 'bookem-group-name-property group-name)
     (newline)))
@@ -439,7 +464,8 @@ will be refreshed."
 	(erase-buffer)
 	(insert "Bookem Bookmark List\n")
 	(insert "--------------------\n")
-	
+	(add-text-properties (point-min) (point)
+			     '(font-lock-face bookem-list-heading-face))
 	(mapc 'bookem-list-write-group bookem-bookmark-groups)
 	(bookem-bookmark-list-mode)))
     buffer))
