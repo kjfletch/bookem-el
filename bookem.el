@@ -8,9 +8,9 @@
 ;; 
 ;;; Commentary
 ;;
-;; This file provides a bookmark for emacs called bookem. This allows
-;; you to create bookmarks for files and other special buffers and
-;; organise them into groups.
+;; This file provides a bookmark system for emacs called bookem. This
+;; allows you to create bookmarks for files and other special buffers
+;; and organise them into groups.
 ;;
 ;; Bookmark types:
 ;;  file      - simple bookmark for a line in a file.
@@ -80,7 +80,7 @@
   "Face to highlight a bookmark name on the bookem bookmark list."
   :version "22.1")
 
-(setq bookem-bookmark-groups nil)
+(setq bookem-bookmark-list nil)
 (setq bookem-active-group nil)
 (setq bookem-current-bookmarks-format 1)
 
@@ -96,7 +96,7 @@
     (when (file-readable-p bookem-bookmarks-path)
       (setq file-contents (read (bookem-read-file bookem-bookmarks-path)))
       (setq file-format (plist-get file-contents :format))
-      (setq bookem-bookmark-groups (plist-get file-contents :bookmarks)))
+      (setq bookem-bookmark-list (plist-get file-contents :bookmarks)))
     
     (if file-format
 	(unless (equal bookem-current-bookmarks-format file-format)
@@ -301,36 +301,12 @@ Overrides ido keymap to allow us to insert spaces."
       (progn
 	(completing-read prompt choices nil require-match initial-input nil nil)))))
 
-(defun bookem-group-from-name (group-name)
-  "Given a group name returns the (group-name . plist) association for 
-that bookmark group. Return nil if not found."
-    (assoc group-name bookem-bookmark-groups))
-
-(defun bookem-bookmark-names-from-group (group-name)
-  "Return a list of all bookmark names in group with given group name."
-  (let ((group-bookmarks (bookem-bookmark-list-from-group group-name)))
-    (when group-bookmarks
-      (mapcar (lambda (x) (car x)) group-bookmarks))))
-
-(defun bookem-list-group-names ()
-  "Return a list of group names."
-  (mapcar (lambda (x) (car x)) bookem-bookmark-groups))
-
-(defun bookem-bookmark-from-group (group-name bookmark-name)
-  "Return a bookmark with given name in the group with given name."
-  (let ((group-bookmarks (bookem-bookmark-list-from-group group-name)))
-    (when group-bookmarks
-      (assoc bookmark-name group-bookmarks))))
-
-(defun bookem-bookmark-list-from-group (group-name)
-  "Get the list of bookmarks in given group name."
-  (let ((found-group (bookem-group-from-name group-name)))
-    (when found-group
-      (cdr found-group))))
-
-(defun bookem-prompt-group-name (&optional require-match)
+(defun bookem-prompt-group-name (&optional require-match allow-empty)
   "Prompt for a group name from the list of all group names."
   (let ((group-names (bookem-list-group-names)))
+
+    (when allow-empty
+      (add-to-list 'group-names ""))
 
     (when (and require-match (not group-names))
       (error "No groups."))
@@ -339,9 +315,9 @@ that bookmark group. Return nil if not found."
 	  (bookem-completing-read "Group: " group-names require-match nil bookem-active-group))
     bookem-active-group))
 
-(defun bookem-prompt-bookmark-name (group &optional require-match initial-input)
+(defun bookem-prompt-bookmark-name (&optional group require-match initial-input)
   "Prompt for a bookmark name from the list of all bookmarks in the given group"
-  (let ((bookmarks-in-group (bookem-bookmark-names-from-group group)))
+  (let ((bookmarks-in-group (bookem-list-bookmark-names group)))
     
     (when (and require-match (not bookmarks-in-group))
       (error "No bookmarks for group"))
@@ -360,42 +336,42 @@ that bookmark group. Return nil if not found."
   (let ((loc (funcall make-defun buffer)))
     `(,bookmark-name . (:type ,bookmark-type :location ,loc))))
 
-(defun bookem-group-get-create (group-name)
-  "Get or create a group from the group list."
-  (let (found-group
-	(new-group  `(,group-name . ())))
-    (setq found-group (bookem-group-from-name group-name))
-    (unless found-group
-      (setq found-group new-group)
-      (setq bookem-bookmark-groups (cons found-group bookem-bookmark-groups)))
-    found-group))
-
-(defun bookem-delete-group (group-name)
-  "Delete a whole group."
-  (setq bookem-bookmark-groups
-	(bookem-ass-equal-delete group-name bookem-bookmark-groups)))
-
-(defun bookem-delete-bookmark (group-name bookmark-name)
-  "Delete bookmark from group."
-  (let (group groups)
-    (setq group (bookem-group-from-name group-name))
-    (unless (bookem-ass-equal-delete bookmark-name (cdr group))
-      (setcdr group nil))))
-
-(defun bookem-add-bookmark-to-group (group-name bookmark)
-  "Add the given bookmark (plist) to the given group (name)."
-  (let (group)
-    (setq group (bookem-group-get-create group-name))
-    (bookem-delete-bookmark group-name (car bookmark))
-    (setcdr group (cons bookmark (cdr group)))))
-
 (defun bookem-save-bookmarks-to-file ()
   "Save the bookmark structure to disk.
 If bookmarks is not nil updates the bookmark groups with new value."
   (let (output-structure)
-    (setq output-structure (plist-put output-structure :bookmarks bookem-bookmark-groups))
+    (setq output-structure (plist-put output-structure :bookmarks bookem-bookmark-list))
     (setq output-structure (plist-put output-structure :format bookem-current-bookmarks-format))
     (bookem-write-file bookem-bookmarks-path (prin1-to-string output-structure))))
+
+(defun bookem-list-group-names ()
+  "List all group names used by all bookmarks."
+  (let (group-names groups)
+    (mapc (lambda (bookmark)
+	    (setq groups (plist-get (cdr bookmark) :groups))
+	    (mapc (lambda (group)
+		    (add-to-list 'group-names group)) 
+		  groups))
+	    bookem-bookmark-list)
+    group-names))
+
+(defun bookem-list-bookmark-names-in-group (group-name)
+  "List all bookmark names which are associated with given group names."
+  (let (bookmark-names groups)
+    (mapc (lambda (bookmark)
+	    (setq groups (plist-get (cdr bookmark) :groups))
+	    (if (member group-name groups)
+		(add-to-list 'bookmark-names (car bookmark))))
+	  bookem-bookmark-list)
+    bookmark-names))
+
+(defun bookem-list-bookmark-names (&optional group-name)
+  "If GROUP-NAME is nil lists all bookmark names. If GROUP-NAME
+is a group name will return a list of all bookmark names
+associated with that group name."
+  (if group-name
+      (bookem-list-bookmark-names-in-group group-name)
+    (mapcar 'car bookem-bookmark-list)))
 
 ;;
 ;; Bookem Bookmark List/Buffer
@@ -423,10 +399,10 @@ If bookmarks is not nil updates the bookmark groups with new value."
   (setq mode-name "Bookem Bookmark Menu")
   (run-mode-hooks 'bookem-bookmark-list-mode-hook))
 
-(defun bookem-list-write-bookmark (bookmark group-name)
+(defun bookem-list-write-bookmark (bookmark-name)
   "Write out the given bookmark in the current buffer."
-  (let (face-start
-	(bookmark-name (car bookmark))
+  (let* (face-start
+	(bookmark (assoc bookmark-name bookem-bookmark-list))
 	(bookmark-rest (car bookmark))
 	(start-line (point)))
     ;;      "_D_>>"
@@ -440,16 +416,15 @@ If bookmarks is not nil updates the bookmark groups with new value."
     (put-text-property start-line (point) 'bookem-bookmark-name-property bookmark-name)
     (put-text-property start-line (point) 'bookem-bookmark-property bookmark)))
 
-(defun bookem-list-write-group (group)
+(defun bookem-list-write-group (group-name)
   "Write out the given group in the current buffer."
-  (let ((group-name (car group))
-	(bookmarks (cdr group))
+  (let ((bookmarks (bookem-list-bookmark-names group-name))
 	(start-line (point)))
     ;;               _D_           Padding before group for option flags.
     (insert (concat "   " group-name "\n"))
     (add-text-properties start-line (point)
 		       '(font-lock-face bookem-list-group-face))
-    (mapc (lambda (bookmark) (bookem-list-write-bookmark bookmark group-name)) bookmarks)
+    (mapc 'bookem-list-write-bookmark bookmarks)
     (put-text-property start-line (point) 'bookem-group-name-property group-name)
     (newline)))
 
@@ -466,7 +441,7 @@ will be refreshed."
 	(insert "--------------------\n")
 	(add-text-properties (point-min) (point)
 			     '(font-lock-face bookem-list-heading-face))
-	(mapc 'bookem-list-write-group bookem-bookmark-groups)
+	(mapc 'bookem-list-write-group (bookem-list-group-names))
 	(bookem-bookmark-list-mode)))
     buffer))
 
@@ -490,14 +465,14 @@ list buffer display it."
 			 (bookem-prompt-group-name t)))
 	 (bookmark-name (or bookmark-name
 			    (bookem-prompt-bookmark-name group-name t)))
-	 (bookmark (bookem-bookmark-from-group group-name bookmark-name)))
+	 (bookmark (assoc bookmark-name bookem-bookmark-list)))
     (when bookmark
       (bookem-display-from-bookmark-plist bookmark))))
 
 (defun bookem-bookmark-buffer (&optional buffer)
   (interactive)
   "Add a bookmark for a given buffer. If no buffer is given assume the current buffer."
-  (let* (buffer suggested-name group-name bookmark-name new-bookmark
+  (let* (buffer suggested-name group-name groups bookmark-name new-bookmark
          (bookmark-type-name (bookem-prompt-type-name buffer))
 	 (bookmark-type-plist (bookem-type-from-type-name bookmark-type-name))
 	 (bookmark-type (plist-get bookmark-type-plist :type))
@@ -509,22 +484,33 @@ list buffer display it."
 
     (setq buffer (or buffer (current-buffer)))
     (setq suggested-name (and suggest-name-defun (funcall suggest-name-defun buffer)))
-    (setq group-name (bookem-prompt-group-name))
-    (setq bookmark-name (bookem-prompt-bookmark-name group-name nil suggested-name))
-    (setq new-bookmark (bookem-create-bookmark bookmark-name bookmark-type make-defun buffer))
+    (setq bookmark-name (bookem-prompt-bookmark-name nil nil suggested-name))
+
+    (if (setq new-bookmark (assoc bookmark-name bookem-bookmark-list))
+	(progn
+	  ;; fixme: need to prompt for overwrite acknowledge here.
+	  )
+      (setq new-bookmark (bookem-create-bookmark bookmark-name bookmark-type make-defun buffer)))
 
     (when (or (not bookmark-name)
 	      (equal "" bookmark-name))
       (error "Invalid bookmark name."))
     (unless new-bookmark
       (error "Could not create bookmark."))
-    (when (or (not group-name) 
-	      (equal "" group-name))
-      (error "Invalid group name."))
 
-    (bookem-add-bookmark-to-group group-name new-bookmark))
+    (setq groups (plist-get (cdr new-bookmark) :groups))
+    (unless groups
+      (while (not (equal "" (setq group-name (bookem-prompt-group-name nil t))))
+	(add-to-list 'groups group-name)))
+
+    (unless groups
+      (add-to-list 'groups "General"))
+
+    (plist-put (cdr new-bookmark) :groups groups)
+
+    (add-to-list 'bookem-bookmark-list new-bookmark)
     (bookem-save-bookmarks-to-file)
-    (message "Bookmark Added."))
+    (message "Bookmark Added.")))
 
 (defun bookem-list-bookmarks ()
   "List the bookmarks in a buffer."
