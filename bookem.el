@@ -385,6 +385,10 @@ associated with that group name."
     (define-key map "p" 'previous-line)
     (define-key map "?" 'describe-mode)
     (define-key map "a" 'bookem-goto-bookmark-at-line)
+    (define-key map "d" 'bookem-mark-for-delete)
+    (define-key map "r" 'bookem-mark-for-remove-from-group)
+    (define-key map "u" 'bookem-unmark)
+    (define-key map "U" 'bookem-unmark-all)
     map))
 
 (defun bookem-bookmark-list-mode ()
@@ -405,23 +409,24 @@ associated with that group name."
 	(bookmark (assoc bookmark-name bookem-bookmark-list))
 	(bookmark-rest (car bookmark))
 	(start-line (point)))
-    ;;      "_D_>>"
-    (insert "     ")
+    ;;      "_DR_>>"
+    (insert "      ")
     (setq face-start (point))
     (insert (car bookmark))
     (add-text-properties face-start (point)
 			 '(font-lock-face bookem-list-bookmark-name-face))
     (insert " - ")
-    (insert (format "%s\n" (plist-get (cdr bookmark) :location)))
+    (insert (format "%s" (plist-get (cdr bookmark) :location)))
     (put-text-property start-line (point) 'bookem-bookmark-name-property bookmark-name)
-    (put-text-property start-line (point) 'bookem-bookmark-property bookmark)))
+    (put-text-property start-line (point) 'bookem-bookmark-property bookmark)
+    (insert "\n")))
 
 (defun bookem-list-write-group (group-name)
   "Write out the given group in the current buffer."
   (let ((bookmarks (bookem-list-bookmark-names group-name))
 	(start-line (point)))
-    ;;               _D_           Padding before group for option flags.
-    (insert (concat "   " group-name "\n"))
+    ;;               _DR__           Padding before group for option flags.
+    (insert (concat "    " group-name "\n"))
     (add-text-properties start-line (point)
 		       '(font-lock-face bookem-list-group-face))
     (mapc 'bookem-list-write-bookmark bookmarks)
@@ -455,6 +460,73 @@ list buffer display it."
     (if property
 	(bookem-display-from-bookmark-plist property)))))
     
+(defun bookem-mark-for-delete ()
+  "Marks the current line in the bookem bookmark list buffer for
+  deletion if the line supports it."
+  (interactive)
+  (let (buffer-read-only)
+    (with-current-buffer (get-buffer-create bookem-bookmark-list-buffer-name)
+      (when (bookem-set-line-props-if 'bookem-bookmark-property
+				      '(bookem-marked-for-delete t))
+	(save-excursion
+	  (beginning-of-line)
+	  (forward-char)
+	  (delete-char 1)
+	  (insert "D"))))))
+
+(defun bookem-mark-for-remove-from-group ()
+  "Marks the current line in the bookem bookmark list buffer for
+  removing from group if the line supports it."
+  (interactive)
+   (let (buffer-read-only)
+    (with-current-buffer (get-buffer-create bookem-bookmark-list-buffer-name)
+      (when (bookem-set-line-props-if 'bookem-bookmark-property
+				      '(bookem-marked-for-remove-from-group t))
+	(save-excursion
+	  (beginning-of-line)
+	  (forward-char 2)
+	  (delete-char 1)
+	  (insert "R"))))))
+
+(defun bookem-unmark ()
+  "Unmark the current line from any previously marked operation
+  if the line supports it."
+  (interactive)
+  (let (buffer-read-only)
+    (with-current-buffer (get-buffer-create bookem-bookmark-list-buffer-name)
+      (when (bookem-set-line-props-if 'bookem-bookmark-property
+				      '(bookem-marked-for-remove-from-group nil
+				        bookem-marked-for-delete nil))
+	(save-excursion
+	  (beginning-of-line)
+	  (forward-char 1)
+	  (delete-char 2)
+	  (insert "  "))))))
+
+(defun bookem-unmark-all ()
+  "Unmark all lines which currently have marks."
+  (interactive)
+  (with-current-buffer (get-buffer-create bookem-bookmark-list-buffer-name)
+    (save-excursion
+      (goto-char (point-min))
+      (while (not (eobp))
+	(bookem-unmark)
+	(forward-line)))))
+
+(defun bookem-set-line-props-if (prep-property properties)
+  "If PREP-PROPERTY text property is non-nil for text at point
+  will apply PROPERTIES to entire line."
+  (let (found-property start-line end-line)
+    (setq found-property (get-text-property (point) prep-property))
+    (when found-property
+      (save-excursion
+	(end-of-line)
+	(setq end-line (point))
+	(beginning-of-line)
+	(setq start-line (point)))
+      (add-text-properties start-line end-line properties))
+    found-property))
+
 ;;
 ;; Public Commands
 ;;
