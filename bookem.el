@@ -1,4 +1,4 @@
-;;; bookem.el
+;;; bookem.el --- Bookmark system organising buffers into groups
 ;;
 ;; Author: Kevin J. Fletcher <kevinjohn.fletcher@googlemail.com>
 ;; Maintainer: Kevin J. Fletcher <kevinjohn.fletcher@googlemail.com>
@@ -6,7 +6,7 @@
 ;; Homepage: http://github.com/kjfletch/bookem-el
 ;; Version: <WIP>
 ;; 
-;;; Commentary
+;;; Commentary:
 ;;
 ;; This file provides a bookmark system for emacs called bookem. This
 ;; allows you to create bookmarks for files and other special buffers
@@ -19,7 +19,7 @@
 ;;  info      - TODO Bookmark a location in an info document.
 ;;  woman     - TODO Bookmark a position in a man page.
 ;;
-;; Changelog
+;;; Changelog:
 ;;
 ;;  WIP - 2010-??-??
 ;;
