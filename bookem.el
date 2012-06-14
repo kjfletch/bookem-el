@@ -1,10 +1,10 @@
-;;; bookem.el --- Bookmark system organising buffers into groups
+;;; bookem.el --- Bookmark system organising bookmarks into groups
 ;;
-;; Author: Kevin J. Fletcher <kevinjohn.fletcher@googlemail.com>
-;; Maintainer: Kevin J. Fletcher <kevinjohn.fletcher@googlemail.com>
+;; Author: Kevin J. Fletcher <dev@kjfletch.co.uk>
+;; Maintainer: Kevin J. Fletcher <dev@kjfletch.co.uk>
 ;; Keywords: bookem, bookmarks
 ;; Homepage: http://github.com/kjfletch/bookem-el
-;; Version: <WIP>
+;; Version: 0.1
 ;; 
 ;;; Commentary:
 ;;
@@ -21,7 +21,13 @@
 ;;
 ;;; Changelog:
 ;;
-;;  WIP - 2010-??-??
+;;  0.1 - 2012-06-14
+;;    First release; features:
+;;    - Create bookmarks (files, c-defuns): `bookem-bookmark-buffer'
+;;    - Assign bookmarks to [multiple] groups when creating.
+;;    - Navigate to bookmarks: `bookem-goto-bookmark'
+;;    - List bookmarks: `bookem-list-bookmarks'
+;;    - Remove/delete bookmarks from groups (from the bookmark list)
 ;;
 ;; Copyright (C) 2010 Kevin J. Fletcher
 ;;
@@ -386,9 +392,9 @@ associated with that group name."
     (define-key map "?" 'describe-mode)
     (define-key map "a" 'bookem-goto-bookmark-at-line)
     (define-key map "d" 'bookem-mark-for-delete)
-    (define-key map "r" 'bookem-mark-for-remove-from-group)
     (define-key map "u" 'bookem-unmark)
     (define-key map "U" 'bookem-unmark-all)
+    (define-key map "x" 'bookem-delete-marked)
     map))
 
 (defun bookem-bookmark-list-mode ()
@@ -409,8 +415,8 @@ associated with that group name."
 	(bookmark (assoc bookmark-name bookem-bookmark-list))
 	(bookmark-rest (car bookmark))
 	(start-line (point)))
-    ;;      "_DR_>>"
-    (insert "      ")
+    ;;      "_D_>>"
+    (insert "     ")
     (setq face-start (point))
     (insert (car bookmark))
     (add-text-properties face-start (point)
@@ -425,8 +431,8 @@ associated with that group name."
   "Write out the given group in the current buffer."
   (let ((bookmarks (bookem-list-bookmark-names group-name))
 	(start-line (point)))
-    ;;               _DR__           Padding before group for option flags.
-    (insert (concat "    " group-name "\n"))
+    ;;               _D__           Padding before group for option flags.
+    (insert (concat "   " group-name "\n"))
     (add-text-properties start-line (point)
 		       '(font-lock-face bookem-list-group-face))
     (mapc 'bookem-list-write-bookmark bookmarks)
@@ -444,10 +450,11 @@ will be refreshed."
 	(erase-buffer)
 	(insert "Bookem Bookmark List\n")
 	(insert "--------------------\n")
-	(add-text-properties (point-min) (point)
-			     '(font-lock-face bookem-list-heading-face))
-	(mapc 'bookem-list-write-group (bookem-list-group-names))
-	(bookem-bookmark-list-mode)))
+	(save-excursion
+	  (add-text-properties (point-min) (point)
+			       '(font-lock-face bookem-list-heading-face))
+	  (mapc 'bookem-list-write-group (bookem-list-group-names))
+	  (bookem-bookmark-list-mode))))
     buffer))
 
 (defun bookem-goto-bookmark-at-line ()
@@ -474,20 +481,6 @@ list buffer display it."
 	  (delete-char 1)
 	  (insert "D"))))))
 
-(defun bookem-mark-for-remove-from-group ()
-  "Marks the current line in the bookem bookmark list buffer for
-  removing from group if the line supports it."
-  (interactive)
-   (let (buffer-read-only)
-    (with-current-buffer (get-buffer-create bookem-bookmark-list-buffer-name)
-      (when (bookem-set-line-props-if 'bookem-bookmark-property
-				      '(bookem-marked-for-remove-from-group t))
-	(save-excursion
-	  (beginning-of-line)
-	  (forward-char 2)
-	  (delete-char 1)
-	  (insert "R"))))))
-
 (defun bookem-unmark ()
   "Unmark the current line from any previously marked operation
   if the line supports it."
@@ -495,8 +488,7 @@ list buffer display it."
   (let (buffer-read-only)
     (with-current-buffer (get-buffer-create bookem-bookmark-list-buffer-name)
       (when (bookem-set-line-props-if 'bookem-bookmark-property
-				      '(bookem-marked-for-remove-from-group nil
-				        bookem-marked-for-delete nil))
+				      '(bookem-marked-for-delete nil))
 	(save-excursion
 	  (beginning-of-line)
 	  (forward-char 1)
@@ -512,6 +504,49 @@ list buffer display it."
       (while (not (eobp))
 	(bookem-unmark)
 	(forward-line)))))
+
+(defun bookem-delete-marked ()
+  "Remove all bookmarks with delete marks from the groups under
+which they are marked."
+  (interactive)
+  (save-excursion
+    (let ((to-delete (bookem-collect-bookmarks-if-property 'bookem-marked-for-delete)))
+      (mapc (lambda (x)
+	      (let ((group (car x))
+		    (bookmark-name (cadr x)))
+		(bookem-delete-bookmark-from-group bookmark-name group)))
+	    to-delete))
+    (bookem-save-bookmarks-to-file)
+    (bookem-list-bookmarks)))
+
+(defun bookem-delete-bookmark-from-group (bookmark-name group)
+  "Remove bookmark with the given name from the given group. The
+  the bookmark is only assigned to this group delete the bookmark altogether."
+  (let (groups (bookmark (assoc bookmark-name bookem-bookmark-list)))
+    (if (and bookmark
+	     (member group (setq groups (plist-get (cdr bookmark) :groups))))
+	(if (<= (length groups) 1)
+	    (setq bookem-bookmark-list (assq-delete-all bookmark-name bookem-bookmark-list))
+	  (plist-put (cdr bookmark) :groups (delq group groups))))))
+
+(defun bookem-collect-bookmarks-if-property (property)
+  "Collect a list of bookmarks whose line in the bookmark list
+  has the given property which evaluates to non-nil. The returned
+  list is in the form ((GROUP REST-OF-BOOKMARK) (GROUP
+  REST-OF-BOOKMARK) ...) where GROUP is the group under which the
+  bookmark has the text property."
+  (with-current-buffer (get-buffer-create bookem-bookmark-list-buffer-name)
+    (let (bookmark collected (point -1))
+      (save-excursion
+	(beginning-of-buffer)
+	(while (> (point-max) (point))
+	  (setq point (point))
+	  (when (and (setq bookmark (get-text-property point 'bookem-bookmark-property))
+		     (get-text-property point property))
+	    (add-to-list 'collected (cons (get-text-property point 'bookem-group-name-property)
+					  bookmark)))
+	  (forward-line)))
+      collected)))
 
 (defun bookem-set-line-props-if (prep-property properties)
   "If PREP-PROPERTY text property is non-nil for text at point
@@ -561,8 +596,10 @@ list buffer display it."
     (if (setq new-bookmark (assoc bookmark-name bookem-bookmark-list))
 	(progn
 	  ;; fixme: need to prompt for overwrite acknowledge here.
-	  )
-      (setq new-bookmark (bookem-create-bookmark bookmark-name bookmark-type make-defun buffer)))
+	  (bookem-ass-equal-delete bookmark-name bookem-bookmark-list)
+	  (setq groups (plist-get (cdr new-bookmark) :groups))))
+
+    (setq new-bookmark (bookem-create-bookmark bookmark-name bookmark-type make-defun buffer))
 
     (when (or (not bookmark-name)
 	      (equal "" bookmark-name))
@@ -570,7 +607,6 @@ list buffer display it."
     (unless new-bookmark
       (error "Could not create bookmark."))
 
-    (setq groups (plist-get (cdr new-bookmark) :groups))
     (unless groups
       (while (not (equal "" (setq group-name (bookem-prompt-group-name nil t))))
 	(add-to-list 'groups group-name)))
