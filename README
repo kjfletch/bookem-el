@@ -10,7 +10,7 @@ ido-mode: http://www.emacswiki.org/emacs/InteractivelyDoThings
 Features
 --------
 * Store bookmarks in groups.
-* Bookmarks list/manager. (TODO)
+* Bookmarks list/manager.
 * ido support for choosing bookmarks.
 * Inbuilt bookmark types:
   + Simple file bookmarks
@@ -23,6 +23,11 @@ Features
     Bookmark a c function. This bookmarks the current c function
     within a file, even if the function moves location (due to active
     development).
+
+  + URL Bookmarks
+
+    Bookmarks a URL. Visiting the bookmark will launch your chosen
+    browser.
 
   + Info Bookmarks (TODO)
 
