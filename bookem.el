@@ -4,7 +4,7 @@
 ;; Maintainer: Kevin J. Fletcher <dev@kjfletch.co.uk>
 ;; Keywords: bookem, bookmarks
 ;; Homepage: http://github.com/kjfletch/bookem-el
-;; Version: 0.1
+;; Version: 0.2
 ;; 
 ;;; Commentary:
 ;;
@@ -16,11 +16,14 @@
 ;;  file      - simple bookmark for a line in a file.
 ;;              also works on dired buffers.
 ;;  c-defun   - bookmark a function in a c file.
+;;  url       - bookmark a url.
 ;;  info      - TODO Bookmark a location in an info document.
 ;;  woman     - TODO Bookmark a position in a man page.
 ;;
 ;;; Changelog:
 ;;
+;;  0.2 - 2012-06-14
+;;    Added URL bookmark support.
 ;;  0.1 - 2012-06-14
 ;;    First release; features:
 ;;    - Create bookmarks (files, c-defuns): `bookem-bookmark-buffer'
@@ -68,7 +71,13 @@
      :type-p bookem-type-p-c-defun
      :make bookem-make-c-defun
      :lookup bookem-lookup-c-defun
-     :suggest-name bookem-suggest-name-c-defun))
+     :suggest-name bookem-suggest-name-c-defun)
+    (:name "URL Bookmark"
+     :type :url
+     :type-p bookem-type-p-url
+     :make bookem-make-url
+     :lookup bookem-lookup-url
+     :suggest-name bookem-suggest-name-url))
   "List of bookem bookmark types.")
 
 (defface bookem-list-heading-face
@@ -228,6 +237,28 @@ and point is within a function definition."
     (with-current-buffer buffer
       (setq filename (file-name-nondirectory (buffer-file-name)))
       (format "%s:%s()" filename (c-defun-name)))))
+
+;;
+;; URL Type
+;;
+(defun bookem-type-p-url (buffer)
+  "Returns non-nil if point in BUFFER is a URL."
+  (with-current-buffer buffer
+    (thing-at-point 'url)))
+
+(defun bookem-make-url (buffer)
+  "Creates the required properties for a url bookmark."
+  (with-current-buffer buffer
+    `(:url ,(thing-at-point 'url))))
+
+(defun bookem-lookup-url (loc)
+  "How a URL bookmark should be visited."
+  (browse-url (plist-get loc :url)))
+
+(defun bookem-suggest-name-url (buffer)
+  "Suggests a name for a URL bookmark."
+  (with-current-buffer buffer
+    (thing-at-point 'url)))
 
 ;;
 ;; General Innards
