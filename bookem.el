@@ -4,7 +4,7 @@
 ;; Maintainer: Kevin J. Fletcher <dev@kjfletch.co.uk>
 ;; Keywords: bookem, bookmarks
 ;; Homepage: http://github.com/kjfletch/bookem-el
-;; Version: 0.2
+;; Version: 0.3WIP
 ;; 
 ;;; Commentary:
 ;;
@@ -22,6 +22,7 @@
 ;;
 ;;; Changelog:
 ;;
+;;  0.3 - WIP
 ;;  0.2 - 2012-06-14
 ;;    Added URL bookmark support.
 ;;  0.1 - 2012-06-14
@@ -359,7 +360,7 @@ Overrides ido keymap to allow us to insert spaces."
     (when (and require-match (not bookmarks-in-group))
       (error "No bookmarks for group"))
 
-    (bookem-completing-read "Bookmark: " bookmarks-in-group require-match initial-input)))
+    (bookem-completing-read "Bookmark Name: " bookmarks-in-group require-match initial-input)))
 
 (defun bookem-prompt-type-name (buffer)
   "Prompt for a bookmark type of the given buffer."
@@ -422,6 +423,7 @@ associated with that group name."
     (define-key map "p" 'previous-line)
     (define-key map "?" 'describe-mode)
     (define-key map "a" 'bookem-goto-bookmark-at-line)
+    (define-key map (kbd "<return>") 'bookem-goto-bookmark-at-line)
     (define-key map "d" 'bookem-mark-for-delete)
     (define-key map "u" 'bookem-unmark)
     (define-key map "U" 'bookem-unmark-all)
