@@ -243,14 +243,13 @@ and point is within a function definition."
 ;; URL Type
 ;;
 (defun bookem-type-p-url (buffer)
-  "Returns non-nil if point in BUFFER is a URL."
-  (with-current-buffer buffer
-    (thing-at-point 'url)))
+  "Always return t. We always want URL bookmarks to be made."
+  t)
 
 (defun bookem-make-url (buffer)
   "Creates the required properties for a url bookmark."
   (with-current-buffer buffer
-    `(:url ,(thing-at-point 'url))))
+    `(:url ,(read-from-minibuffer "URL: " (thing-at-point 'url)))))
 
 (defun bookem-lookup-url (loc)
   "How a URL bookmark should be visited."
