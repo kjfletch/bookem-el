@@ -17,12 +17,14 @@
 ;;              also works on dired buffers.
 ;;  c-defun   - bookmark a function in a c file.
 ;;  url       - bookmark a url.
+;;  woman     - bookmark a position in a man page.
 ;;  info      - TODO Bookmark a location in an info document.
-;;  woman     - TODO Bookmark a position in a man page.
+;;  [e]shell  - TODO Bookmark a working directory in a shell.
 ;;
 ;;; Changelog:
 ;;
 ;;  0.3 - WIP
+;;    Added WoMan bookmark support.
 ;;  0.2 - 2012-06-14
 ;;    Added URL bookmark support.
 ;;  0.1 - 2012-06-14
@@ -33,7 +35,7 @@
 ;;    - List bookmarks: `bookem-list-bookmarks'
 ;;    - Remove/delete bookmarks from groups (from the bookmark list)
 ;;
-;; Copyright (C) 2010 Kevin J. Fletcher
+;; Copyright (C) 2010-2012 Kevin J. Fletcher
 ;;
 ;; This program is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -78,7 +80,13 @@
      :type-p bookem-type-p-url
      :make bookem-make-url
      :lookup bookem-lookup-url
-     :suggest-name bookem-suggest-name-url))
+     :suggest-name bookem-suggest-name-url)
+    (:name "Woman Bookmark"
+     :type :woman
+     :type-p bookem-type-type-p-woman
+     :make bookem-make-woman-bookmark
+     :lookup bookem-lookup-woman
+     :suggest-name bookem-suggest-name-woman))
   "List of bookem bookmark types.")
 
 (defface bookem-list-heading-face
@@ -259,6 +267,29 @@ and point is within a function definition."
   "Suggests a name for a URL bookmark."
   (with-current-buffer buffer
     (thing-at-point 'url)))
+
+;;
+;; Woman Type
+;;
+(defun bookem-type-type-p-woman (buffer)
+  "Return t if buffer is a woman buffer."
+  (eq major-mode 'woman-mode))
+
+(defun bookem-make-woman-bookmark (buffer)
+  "Create a woman bookmark from the given buffer."
+  (with-current-buffer buffer
+    (let ((wo (rassoc (buffer-name) woman-buffer-alist)))
+      `(:path ,(car wo)
+	:point ,(point)))))
+
+(defun bookem-lookup-woman (loc)
+  "Navigate to the woman bookmark."
+  (woman-find-file (plist-get loc :path))
+  (goto-char (plist-get loc :point)))
+
+(defun bookem-suggest-name-woman (buffer)
+  "Suggest a name for a woman buffer bookmark."
+  (buffer-name buffer))
 
 ;;
 ;; General Innards
