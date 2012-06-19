@@ -18,13 +18,14 @@
 ;;  c-defun   - bookmark a function in a c file.
 ;;  url       - bookmark a url.
 ;;  woman     - bookmark a position in a man page.
+;;  [e]shell  - bookmark a working directory in a shell.
 ;;  info      - TODO Bookmark a location in an info document.
-;;  [e]shell  - TODO Bookmark a working directory in a shell.
 ;;
 ;;; Changelog:
 ;;
 ;;  0.3 - WIP
 ;;    Added WoMan bookmark support.
+;;    Added Shell bookmark support (shell & eshell).
 ;;  0.2 - 2012-06-14
 ;;    Added URL bookmark support.
 ;;  0.1 - 2012-06-14
@@ -63,30 +64,36 @@
   "Define the name of the bookmark list/buffer.")
 
 (defvar bookem-bookmark-types
-  '((:name   "File Bookmark" 
+  '((:name   "File" 
      :type   :file 
      :type-p bookem-type-p-file
      :make   bookem-make-file
      :lookup bookem-lookup-file
      :suggest-name bookem-suggest-name-file)
-    (:name "C Function Bookmark"
+    (:name "C Function"
      :type :c-defun
      :type-p bookem-type-p-c-defun
      :make bookem-make-c-defun
      :lookup bookem-lookup-c-defun
      :suggest-name bookem-suggest-name-c-defun)
-    (:name "URL Bookmark"
+    (:name "URL"
      :type :url
      :type-p bookem-type-p-url
      :make bookem-make-url
      :lookup bookem-lookup-url
      :suggest-name bookem-suggest-name-url)
-    (:name "Woman Bookmark"
+    (:name "WoMan"
      :type :woman
-     :type-p bookem-type-type-p-woman
+     :type-p bookem-type-p-woman
      :make bookem-make-woman-bookmark
      :lookup bookem-lookup-woman
-     :suggest-name bookem-suggest-name-woman))
+     :suggest-name bookem-suggest-name-woman)
+    (:name "shell"
+     :type :shell
+     :type-p bookem-type-p-shell
+     :make bookem-make-shell
+     :lookup bookem-lookup-shell
+     :suggest-name bookem-suggest-name-shell))
   "List of bookem bookmark types.")
 
 (defface bookem-list-heading-face
@@ -271,7 +278,7 @@ and point is within a function definition."
 ;;
 ;; Woman Type
 ;;
-(defun bookem-type-type-p-woman (buffer)
+(defun bookem-type-p-woman (buffer)
   "Return t if buffer is a woman buffer."
   (eq major-mode 'woman-mode))
 
@@ -290,6 +297,32 @@ and point is within a function definition."
 (defun bookem-suggest-name-woman (buffer)
   "Suggest a name for a woman buffer bookmark."
   (buffer-name buffer))
+
+;;
+;; Shell Type
+;;
+(defun bookem-type-p-shell (buffer)
+  "Return t if buffer is a shell buffer."
+  (or (eq major-mode 'eshell-mode)
+      (eq major-mode 'shell-mode)))
+
+(defun bookem-make-shell (buffer)
+  "Create a shell bookmark."
+  `(:path ,default-directory
+    :shell-type ,(cond ((eq major-mode 'eshell-mode) 'eshell)
+		       ((eq major-mode 'shell-mode) 'shell))))
+
+(defun bookem-lookup-shell (loc)
+  "Lookup a shell bookmark."
+  ;; fixme: Should check if other shells are active, are they already
+  ;; in the current bookmark directory? How should we handle
+  ;; multi-shell, multi-eshell, etc?
+  (let ((default-directory (plist-get loc :path)))
+    (funcall (plist-get loc :shell-type))))
+
+(defun bookem-suggest-name-shell (buffer)
+  "Suggest a name for a shell bookmark."
+  (concat "shell:" (with-current-buffer buffer default-directory)))
 
 ;;
 ;; General Innards
