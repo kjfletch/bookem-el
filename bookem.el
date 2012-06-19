@@ -497,6 +497,7 @@ associated with that group name."
     (define-key map "u" 'bookem-unmark)
     (define-key map "U" 'bookem-unmark-all)
     (define-key map "x" 'bookem-delete-marked)
+    (define-key map "g" 'bookem-list-bookmarks)
     map))
 
 (defun bookem-bookmark-list-mode ()
