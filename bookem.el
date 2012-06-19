@@ -314,11 +314,17 @@ and point is within a function definition."
 
 (defun bookem-lookup-shell (loc)
   "Lookup a shell bookmark."
-  ;; fixme: Should check if other shells are active, are they already
-  ;; in the current bookmark directory? How should we handle
-  ;; multi-shell, multi-eshell, etc?
-  (let ((default-directory (plist-get loc :path)))
-    (funcall (plist-get loc :shell-type))))
+  (let ((default-directory (plist-get loc :path))
+	(type (plist-get loc :shell-type)))
+    (cond ((eq type 'shell)
+	   ;; fixme: we could see if multi-shell is available and
+	   ;; create a new shell that way.
+	   (shell (get-buffer-create (concat "bookem shell: " default-directory))))
+	  ((eq type 'eshell)
+	   ;; fixme: we need to create a new shell for each bookmark.
+	   ;; fixme: we could see if multi-eshell is available and
+	   ;; create a new shell that way.
+	   (eshell)))))
 
 (defun bookem-suggest-name-shell (buffer)
   "Suggest a name for a shell bookmark."
