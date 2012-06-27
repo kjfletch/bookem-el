@@ -4,7 +4,7 @@
 ;; Maintainer: Kevin J. Fletcher <dev@kjfletch.co.uk>
 ;; Keywords: bookem, bookmarks
 ;; Homepage: http://github.com/kjfletch/bookem-el
-;; Version: 0.3WIP
+;; Version: 0.3
 ;; 
 ;;; Commentary:
 ;;
@@ -23,7 +23,7 @@
 ;;
 ;;; Changelog:
 ;;
-;;  0.3 - WIP
+;;  0.3 - 2012-06-27
 ;;    Added WoMan bookmark support.
 ;;    Added Shell bookmark support (shell & eshell).
 ;;  0.2 - 2012-06-14
